@@ -1,0 +1,427 @@
+Installation Of Terraform:
+To install Terraform follow the below steps.
+-> Lunch ubuntu18.04 version
+-> Run the below commands
+[] curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+[] sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+[] sudo apt-get update && sudo apt-get install terraform
+-> Check the version of the terraform
+[] terraform version
+-> Download secret key and access key from AWS Dashboard > Click on Account on the right sidebar On the accounts's detail page, click the 'Security credentials' tab. Scroll down to the 'Access keys' section. > Click 'Create access key'. > We'll see our Access Key ID and Secret Access Key on screen. Click 'Download .csv file' to save both keys
+-> Create a directory and go inside directory
+[] mkdir scripts
+[] cd scripts
+-----------------------------------------
+#Script 1:
+[] vi main.tf
+
+provider "aws" {
+    access_key = "xxxxx"
+    secret_key = "xxxxx"
+    region     = "ap-south-1"
+}
+
+resource "aws_instance" "Block Name (We can give any name)" {
+    ami = "We can take any AMI"
+    instance_type = "t2.micro"
+}
+[] Esc > :wq!
+[]terraform init > Used to initialize terraform
+-> Follow the below commands 
+[] terraform validate > Used to validate the syntax
+[] terraform plan > Nothing but Dry run 
+[] terraform apply > It will create a Server
+[] terraform destroy > Used to delete the server
+-----------------------------------------
+#Script 2:
+[] vi main.tf
+provider "aws" {
+    access_key = ""
+    secret_key = ""
+    region     = "ap-south-1"
+}
+
+resource "aws_instance" "ec2_instance" {
+    ami = "ami-0c1a7f89451184c8b"
+    instance_type = "t2.micro"
+    tags = {Name = "HTTPS SERVER"}
+}
+[] Esc > :wq!
+[] terraform apply > It will create a Server
+-----------------------------------------
+#Script 3 - Variables:
+[] vi main.tf
+resource "aws_instance" "ec2_instance" {
+    ami = var.AMI
+    instance_type = var.machine_type
+}
+
+[] vi provider.tf
+provider "aws" {
+    access_key = var.AWS_ACCESSKEY
+    secret_key = var.AWS_SECRETKEY
+    region = var.AWS_REGION
+}
+
+[] vi variable.tf
+# # Access Key
+variable AWS_ACCESSKEY {
+  default     = "xxxxxx"
+}
+
+# Secret Key
+variable AWS_SECRETKEY {
+  default     = "xxxxx"
+}
+
+# Region
+variable AWS_REGION {
+  default     = "ap-south-1"
+}
+
+#AMI
+variable AMI {
+  default = "AMi"
+}
+
+#instance_type
+variable machine_type {
+  default = "t2.micro"
+}
+-----------------------------------------
+Securing credentials:
+-> From this example we can understand how we can secure our credentials using AWS command line utility.
+-> First we need to install aws cli tool in our virtual machine. Follow the below steps to install aws cli
+[] apt install wget curl -y
+[] apt install unzip -y
+[] curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+[] unzip awscliv2.zip
+-> cd to aws folder post unzip and do install 
+[] ./install
+[] aws configure > command which will prompt for asking access & secret key
+	Access Key:
+	Secret Key:
+	Region:
+	Format:
+[] cat ~/.aws/credentials > To view the file
+-----------------------------------------
+#Script 4:
+[] vi main.tf
+resource "aws_instance" "ec2_instance" {
+    ami = "ami-052c08d70def0ac62"
+    instance_type = "t2.micro"
+}
+
+[] vi provider.tf
+provider "aws" {
+    region = var.AWS_REGION
+}
+
+[] vi vars.tf
+# Region
+variable AWS_REGION {
+  default     = "ap-south-1"
+}
+-----------------------------------------
+#Script 5: AWS Resource Creation
+[] vi main.tf
+# Create new security group :
+resource "aws_security_group" "Any Name" {
+    name = "Any Name security group"
+    vpc_id = var.vpc.id
+
+    ingress {
+        description = "inbound"
+        from_port = 22
+        to_port = 22
+        protocol = "tcp"
+        cidr_blocks = [var.vpc.cidr]
+    }
+
+    egress {
+        description = "outbound"
+        from_port = 0
+        to_port = 0
+        protocol = "tcp"
+        cidr_blocks = [var.vpc.cidr]
+    }
+    
+    tags = {
+        sg_name = "Any Name-security-group"
+    }
+
+}
+
+# Create EC2 instance
+resource "aws_instance" "ec2_instance" {
+    ami = ""
+    instance_type = ""
+    vpc_security_group_ids = [aws_security_group.AnyName.id]
+    tags = {Name = "HTTP_SERVER"}
+    key_name = ""
+    count = 2
+}
+
+[] vi provider.tf
+# Provider :
+provider "aws" {
+    region = var.AWS_REGION
+}
+
+[] vi vars.tf
+# Region
+variable AWS_REGION {
+  default     = "us-east-1"
+}
+
+# VPC 
+variable "vpc" {
+  default = {
+    id = "VPC I'D"
+    cidr = "0.0.0.0/0"
+  }
+}
+-----------------------------------------
+#Script 6: AWS Resource Creation
+[] vi main.tf
+# Create vpc :
+resource "aws_vpc" "MyVPC" {
+  cidr_block = var.My_VPC.cidr
+  tags = {
+    Name = var.My_VPC.vpc_name
+  }
+}
+
+# Create dedicated Subnet for your vpc :
+resource "aws_subnet" "MySubnet" {
+  vpc_id                  = aws_vpc.MyVPC.id
+  cidr_block              = var.My_VPC.subnet_cidr
+  map_public_ip_on_launch = "true"
+  availability_zone       = "us-east-1b"
+  tags = {
+    Name = var.My_VPC.subnet_name
+  }
+}
+
+# Create instance :
+resource "aws_instance" "MyEC2" {
+  ami = var.My_Instance.myimage
+  instance_type = ""
+  subnet_id = aws_subnet.MySubnet.id
+  tags = {
+    Name = var.My_Instance.mytag
+  }
+}
+
+[]  vi provider.tf
+provider "aws" {
+    region = var.AWS_REGION
+}
+
+[] vi vars.tf
+# Region
+variable AWS_REGION {
+  default     = "us-east-1"
+}
+
+# virtual private network
+variable My_VPC {
+  default = {
+    cidr = "172.32.0.0/16"
+    subnet_cidr = "172.32.0.0/24"
+    vpc_name = "Terra_vpc"
+    subnet_name = "Terra-subnet"
+  }
+}
+
+# Instance tags
+variable My_Instance {
+  default = {
+    myimage = "AMI I'D"
+    mytag = "Instance Name"
+  }
+}
+-----------------------------------------
+#Script 7: AWS Resource Creation
+[] vi main.tf
+# Create EBS volume
+resource "aws_ebs_volume" "Storage_Vol" {
+  availability_zone = "us-east-1a"
+  size              = 1
+  tags = {
+    Name = var.Instance_Data.name
+  }
+}
+
+# Create new instance
+resource "aws_instance" "Web" {
+  ami               = var.Instance_Data.ami
+  availability_zone = "us-east-1a"
+  instance_type     = var.Instance_Data.type
+  tags = {
+    Name = var.Instance_Data.name
+  }
+}
+
+# Attach newly create EBS volume to instance
+resource "aws_volume_attachment" "EBS_Att" {
+  device_name = var.Instance_Data.drive
+  volume_id   = aws_ebs_volume.Storage_Vol.id
+  instance_id = aws_instance.Web.id
+}
+
+[] vi provider.tf
+provider "aws" {
+    region = var.AWS_REGION
+}
+
+[] vi vars.tf
+# Region
+variable AWS_REGION {
+  default     = "us-east-1"
+}
+
+# Image
+variable Instance_Data {
+  default = {
+    ami = ""
+    type = "Instance Type"
+    name = "EBS_Server"
+    drive = "/dev/sde"
+  }
+}
+-----------------------------------------
+[] terraform output: This command will do actual implementation in your infrastructure.
+[] terraform output >> file.txt: You can do terraform output any point in time even after apply which will print the results.
+[] terraform output public_ip: You can extract the output to a file.
+[] terraform output ip_address >> /etc/ansible/hosts: You can also fetch outputs separately by calling the name.
+
+#Script 8:
+[] vi main.tf
+resource "aws_instance" "ec2_instance" {
+    ami = var.AMI
+    instance_type = ""
+    tags = {Name = "CASSANDRA_SERVER"}
+}
+
+[] vi output.tf
+output "public_ip" {
+  value = aws_instance.ec2_instance.public_ip
+}
+
+output "instance_id" {
+  value = aws_instance.ec2_instance.id
+}
+
+output "cpu_core" {
+  value = aws_instance.ec2_instance.cpu_core_count
+}
+
+output "instance_type" {
+  value = aws_instance.ec2_instance.instance_type
+}
+
+output "volume_id" {
+  value = aws_instance.ec2_instance.root_block_device[0].volume_id
+}
+
+output "volume_size" {
+  value = aws_instance.ec2_instance.root_block_device[0].volume_size
+}
+
+output "volume_type" {
+  value = aws_instance.ec2_instance.root_block_device[0].volume_type
+}
+
+[] vi provider.tf
+provider "aws" {
+    region = var.AWS_REGION
+}
+
+[] vi vars.tf
+# Region
+variable AWS_REGION {
+  default = ""
+}
+
+# Image IDs
+variable "AMI" {
+  default = ""
+}
+-----------------------------------------
+#Script 9:
+[] vi main.tf
+# Create new users :
+resource "aws_iam_user" "db_users" {
+    count = length(var.users)
+    name  = element(var.users, count.index)
+    #name =  var.users[count.index]
+}
+
+# Create new group :
+resource "aws_iam_group" "db_group" {
+    name = var.group
+}
+
+# Add users to group :
+resource "aws_iam_user_group_membership" "lb_add" {
+    count  = length(var.users)
+    user   = element(var.users, count.index)
+    groups = [aws_iam_group.db_group.name]
+}
+
+[] vi provider.tf
+provider "aws" {
+    region = var.AWS_REGION
+}
+
+[] vi vars.tf
+# Region
+variable AWS_REGION {
+  default     = ""
+}
+
+# Create users
+variable users {
+  default = ["db001", "db002", "db003", "db004", "db005"]
+}
+
+# Create groups 
+variable group {
+  default = "database-adminstrator"
+}
+
+--------------------------------------------
+
+#Script 10:
+[] vi main.tf
+# Create instance:
+resource "aws_instance" "apache_instance" {
+  count         = var.instance_data.count
+  ami           = var.instance_data.ami
+  instance_type = var.instance_data.type
+  tags = {
+    Name  = element(var.instance_data.tag, count.index)
+  }
+}
+
+[] vi provider.tf
+provider "aws" {
+    region = var.AWS_REGION
+}
+
+[] vi vars.tf
+# Region
+variable AWS_REGION {
+  default     = ""
+}
+
+# Image
+variable instance_data {
+  default = {
+    count = "3"
+    ami = ""
+    type = ""
+    tag = ["Ser1", "Ser2", "Ser3"]
+  }
+}
